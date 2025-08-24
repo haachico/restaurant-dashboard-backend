@@ -16,19 +16,28 @@ try {
     $end_date = $_GET['end_date'] ?? $today;
 
 
-    $sql = "SELECT COUNT(id) as orders_count,
+    $sql = "SELECT Date(order_time) as order_date,
+            COUNT(id) as orders_count,
             SUM(order_amount) as daily_revenue,
             SUM(order_amount) / COUNT(id) AS average_order_value
-    FROM orders 
-    WHERE restaurant_id = ? AND order_time BETWEEN ? AND ?";
+        FROM orders 
+        WHERE restaurant_id = ? AND order_time BETWEEN ? AND ?
+        GROUP BY order_date
+        ORDER BY order_date";
+
     $stmt = $conn->prepare($sql);
     $stmt->execute([$restaurant_id, $start_date, $end_date]);
-    
 
-    $orders = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $records = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $dailyRecords = [];
+
+    foreach ($records as $row) {
+        $dailyRecords[] = $row;
+    }
 
 
-    $peak_time = $sql = "SELECT DATE(order_time) as order_date, HOUR(order_time) as hour, COUNT(*) as order_count
+    $sql = "SELECT DATE(order_time) as order_date, HOUR(order_time) as hour, COUNT(*) as order_count
         FROM orders
         WHERE restaurant_id = ? AND order_time BETWEEN ? AND ?
         GROUP BY order_date, hour
@@ -37,6 +46,8 @@ try {
     $stmt->execute([$restaurant_id, $start_date, $end_date]);
     $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+
+ 
     $trendy_hrs = [];
     $daily = [];
 
@@ -60,6 +71,7 @@ foreach ($daily as $peaks) {
 }
 
     $orders['trendy_hours'] = $trendy_hrs;
+    $orders['daily_records'] = $dailyRecords;
 
     $response = [
         'status_code' => 200,
