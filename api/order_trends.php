@@ -10,25 +10,36 @@ header('Access-Control-Allow-Headers: Content-Type');
 
 try {
 
+
     $restaurant_id = $_GET['restaurant_id'] ?? '';
     $today = date('Y-m-d');
     $start_date = $_GET['start_date'] ?? $today;
     $end_date = $_GET['end_date'] ?? $today;
+    $amount_min = isset($_GET['amount_min']) ? (float)$_GET['amount_min'] : 0;
+    $amount_max = isset($_GET['amount_max']) ? (float)$_GET['amount_max'] : 10000;
+    $hour_min = isset($_GET['hour_min']) ? (int)$_GET['hour_min'] : 0;
+    $hour_max = isset($_GET['hour_max']) ? (int)$_GET['hour_max'] : 23;
+    $amount_range = $_GET['amount_range'] ?? '';
+    $hour_range = $_GET['hour_range'] ?? '';
 
 
-    $sql = "SELECT Date(order_time) as order_date,
-            COUNT(id) as orders_count,
-            SUM(order_amount) as daily_revenue,
-            SUM(order_amount) / COUNT(id) AS average_order_value
-        FROM orders 
-        WHERE restaurant_id = ? AND order_time BETWEEN ? AND ?
-        GROUP BY order_date
-        ORDER BY order_date";
 
-    $stmt = $conn->prepare($sql);
-    $stmt->execute([$restaurant_id, $start_date, $end_date]);
+        $sql = "SELECT Date(order_time) as order_date,
+                        COUNT(id) as orders_count,
+                        SUM(order_amount) as daily_revenue,
+                        SUM(order_amount) / COUNT(id) AS average_order_value
+                FROM orders 
+                WHERE restaurant_id = ?
+                    AND DATE(order_time) BETWEEN ? AND ?
+                    AND order_amount BETWEEN ? AND ?
+                    AND HOUR(order_time) BETWEEN ? AND ?
+                GROUP BY order_date
+                ORDER BY order_date";
 
-    $records = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $stmt = $conn->prepare($sql);
+        $stmt->execute([$restaurant_id, $start_date, $end_date, $amount_min, $amount_max, $hour_min, $hour_max]);
+
+        $records = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     $dailyRecords = [];
 
@@ -37,27 +48,34 @@ try {
     }
 
 
-    $sql = "SELECT DATE(order_time) as order_date, HOUR(order_time) as hour, COUNT(*) as order_count
-        FROM orders
-        WHERE restaurant_id = ? AND order_time BETWEEN ? AND ?
-        GROUP BY order_date, hour
-        ORDER BY order_date, order_count DESC";
-    $stmt = $conn->prepare($sql);
-    $stmt->execute([$restaurant_id, $start_date, $end_date]);
-    $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        $sql = "SELECT DATE(order_time) as order_date, HOUR(order_time) as hour, COUNT(*) as order_count
+                FROM orders
+                WHERE restaurant_id = ?
+                    AND DATE(order_time) BETWEEN ? AND ?
+                    AND order_amount BETWEEN ? AND ?
+                    AND HOUR(order_time) BETWEEN ? AND ?
+                GROUP BY order_date, hour
+                ORDER BY order_date, order_count DESC";
+        $stmt = $conn->prepare($sql);
+        $stmt->execute([$restaurant_id, $start_date, $end_date, $amount_min, $amount_max, $hour_min, $hour_max]);
+        $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 
-    $maxRevenueResSql = "SELECT r.name as restaurant_name, MAX(o.order_amount) as max_revenue
-    FROM orders o
-    JOIN restaurants_data r ON o.restaurant_id = r.id
-    WHERE o.order_time BETWEEN ? AND ?
-    GROUP BY r.name
-    ORDER BY max_revenue DESC
-    LIMIT 3";
 
-    $stmt = $conn->prepare($maxRevenueResSql);
-    $stmt->execute([$start_date, $end_date]);
-    $maxRevenueRestaurants = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $maxRevenueResSql = "SELECT r.name as restaurant_name, MAX(o.order_amount) as max_revenue
+        FROM orders o
+        JOIN restaurants_data r ON o.restaurant_id = r.id
+        WHERE DATE(o.order_time) BETWEEN ? AND ?
+            AND o.order_amount BETWEEN ? AND ?
+            AND HOUR(o.order_time) BETWEEN ? AND ?
+        GROUP BY r.name
+        ORDER BY max_revenue DESC
+        LIMIT 3";
+
+        $stmt = $conn->prepare($maxRevenueResSql);
+        $stmt->execute([$start_date, $end_date, $amount_min, $amount_max, $hour_min, $hour_max]);
+        $maxRevenueRestaurants = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 
 
