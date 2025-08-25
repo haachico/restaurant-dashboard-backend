@@ -47,7 +47,20 @@ try {
     $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 
- 
+    $maxRevenueResSql = "SELECT r.name as restaurant_name, MAX(o.order_amount) as max_revenue
+    FROM orders o
+    JOIN restaurants_data r ON o.restaurant_id = r.id
+    WHERE o.order_time BETWEEN ? AND ?
+    GROUP BY r.name
+    ORDER BY max_revenue DESC
+    LIMIT 3";
+
+    $stmt = $conn->prepare($maxRevenueResSql);
+    $stmt->execute([$start_date, $end_date]);
+    $maxRevenueRestaurants = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+
+
     $trendy_hrs = [];
     $daily = [];
 
@@ -72,6 +85,7 @@ foreach ($daily as $peaks) {
 
     $orders['trendy_hours'] = $trendy_hrs;
     $orders['daily_records'] = $dailyRecords;
+    $orders['max_revenue_restaurants'] = $maxRevenueRestaurants;
 
     $response = [
         'status_code' => 200,
